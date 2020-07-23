@@ -1,4 +1,10 @@
 #include "HX711.h"
+#include <MPU6050_tockn.h>
+#include <Wire.h>
+#include <Adafruit_NeoPixel.h>
+#define NUM_LEDS 1
+#define NEOPIXEL_PIN 5
+
 /*
 Description :
 Ce firmware a pour rôle de récuperer les valeurs de l'ensemble des capteurs sur demande
@@ -47,14 +53,16 @@ const int FOOT_LB_SCK_PIN = 6;
 //Bouton ILS pour démarrage
 const int ILS_PIN = 2;
 
-//Sortie NeoPixel
-const int NEOPIXEL_PIN = 5;
-
 // declaration des capteurs de force
 HX711 foot_rf;
 HX711 foot_rb;
 HX711 foot_lf;
 HX711 foot_lb;
+
+// declaration du MPU
+MPU6050 mpu6050(Wire);
+
+Adafruit_NeoPixel pixels(NUM_LEDS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 // declaration des variables
 long force_rf=0;
@@ -67,43 +75,64 @@ int  ready_lf=0;
 int  ready_lb=0;
 
 void setup() {
+  pinMode(ILS_PIN, INPUT);
   Serial.begin(115200);
+  Wire.begin();
+  mpu6050.begin();
+  mpu6050.calcGyroOffsets(true);
+
+  pixels.begin();
+  pixels.clear();
+  pixels.setBrightness(255);
+  pixels.setPixelColor(0, pixels.Color(0, 0, 150));
+  pixels.show();
+  
+  Serial.println("Start");
   foot_rf.begin(FOOT_RF_DOUT_PIN, FOOT_RF_SCK_PIN);
+  Serial.println("Ready rf");
   foot_rb.begin(FOOT_RB_DOUT_PIN, FOOT_RB_SCK_PIN);
+  Serial.println("Ready rf+rb");
   foot_lf.begin(FOOT_LF_DOUT_PIN, FOOT_LF_SCK_PIN);
+  Serial.println("Ready rf+rb+lf");
   foot_lb.begin(FOOT_LB_DOUT_PIN, FOOT_LB_SCK_PIN);
+  Serial.println("Ready all");
+  Serial.println(F_CPU);
 }
 
 void loop() {
+  
+  mpu6050.update();
+  if (foot_rf.is_ready()){
+    force_rf = -(foot_rf.read()-89287)/1000;
+    ready_rf = 1;
+  }else{
+    ready_rf = 0;
+  }
+  if (foot_rb.is_ready()){
+    force_rb = -(foot_rb.read()+41736)/1000;
+    ready_rb = 1;
+  }else{
+    ready_rb = 0;
+  }
+  if (foot_lf.is_ready()){
+    force_lf = -(foot_lf.read()-124089)/1000;
+    ready_lf = 1;
+  }else{
+    ready_lf = 0;
+  }
+  if (foot_lb.is_ready()){
+    force_lb = -(foot_lb.read()-17528)/1000;
+    ready_lb = 1;
+  }else{
+    ready_lb = 0;
+  }
+
+  // led
+  
   if(Serial.available()>0){
     char c = (char)Serial.read();
     //Serial.println(c);
     if(c=='A'){
-      // lire les capteurs s'ils sont prêts
-      if (foot_rf.is_ready()){
-        force_rf = foot_rf.read();
-        ready_rf = 1;
-      }else{
-        ready_rf = 0;
-      }
-      if (foot_rb.is_ready()){
-        force_rb = foot_rb.read();
-        ready_rb = 1;
-      }else{
-        ready_rb = 0;
-      }
-      if (foot_lf.is_ready()){
-        force_lf = foot_lf.read();
-        ready_lf = 1;
-      }else{
-        ready_lf = 0;
-      }
-      if (foot_lb.is_ready()){
-        force_lb = foot_lb.read();
-        ready_lb = 1;
-      }else{
-        ready_lb = 0;
-      }
       // envoyer le json
       Serial.print("{\"RF\":{\"F\":");
       Serial.print(force_rf);
@@ -121,8 +150,22 @@ void loop() {
       Serial.print(force_lb);
       Serial.print(",\"S\":");
       Serial.print(ready_lb);
+      Serial.print("},\"GYR\":{\"X\":");
+      Serial.print(mpu6050.getGyroX());
+      Serial.print(",\"Y\":");
+      Serial.print(mpu6050.getGyroY());
+      Serial.print(",\"Z\":");
+      Serial.print(mpu6050.getGyroZ());
+      Serial.print("},\"ANG\":{\"X\":");
+      Serial.print(mpu6050.getAngleX());
+      Serial.print(",\"Y\":");
+      Serial.print(mpu6050.getAngleY());
+      Serial.print(",\"Z\":");
+      Serial.print(mpu6050.getAngleZ());
+      Serial.print("},\"ILS\":{\"S\":");
+      Serial.print(!digitalRead(ILS_PIN));
       Serial.print("}}\n");
     }
   }
-  delay(1);
+  delay(100);
 }
