@@ -2,7 +2,7 @@
 #include <MPU6050_tockn.h>
 #include <Wire.h>
 #include <Adafruit_NeoPixel.h>
-#define NUM_LEDS 1
+#define NUM_LEDS 11
 #define NEOPIXEL_PIN 5
 
 /*
@@ -75,32 +75,26 @@ int  ready_lf=0;
 int  ready_lb=0;
 
 void setup() {
+  pixels.begin();
+  pixels.clear();
+  pixels.setBrightness(50);
+  pixels.setPixelColor(5, pixels.Color(255, 0, 0));
+  pixels.show();
   pinMode(ILS_PIN, INPUT);
   Serial.begin(115200);
   Wire.begin();
   mpu6050.begin();
   mpu6050.calcGyroOffsets(true);
-
-  pixels.begin();
-  pixels.clear();
-  pixels.setBrightness(255);
-  pixels.setPixelColor(0, pixels.Color(0, 0, 150));
-  pixels.show();
-  
-  Serial.println("Start");
   foot_rf.begin(FOOT_RF_DOUT_PIN, FOOT_RF_SCK_PIN);
-  Serial.println("Ready rf");
   foot_rb.begin(FOOT_RB_DOUT_PIN, FOOT_RB_SCK_PIN);
-  Serial.println("Ready rf+rb");
   foot_lf.begin(FOOT_LF_DOUT_PIN, FOOT_LF_SCK_PIN);
-  Serial.println("Ready rf+rb+lf");
   foot_lb.begin(FOOT_LB_DOUT_PIN, FOOT_LB_SCK_PIN);
-  Serial.println("Ready all");
-  Serial.println(F_CPU);
+  pixels.setPixelColor(5, pixels.Color(0, 0, 150));
+  pixels.show();
 }
 
 void loop() {
-  
+  // lecture des capteurs
   mpu6050.update();
   if (foot_rf.is_ready()){
     force_rf = -(foot_rf.read()-89287)/1000;
@@ -128,6 +122,11 @@ void loop() {
   }
 
   // led
+  pixels.clear();
+  if(force_rf+force_rb+force_lf+force_lb>40){
+    pixels.setPixelColor(10*(force_rf+force_rb)/(force_rf+force_rb+force_lf+force_lb), pixels.Color(0, 0, 150));
+  }
+  pixels.show();
   
   if(Serial.available()>0){
     char c = (char)Serial.read();
@@ -167,5 +166,5 @@ void loop() {
       Serial.print("}}\n");
     }
   }
-  delay(100);
+  delay(10);
 }
