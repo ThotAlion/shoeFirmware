@@ -27,8 +27,8 @@ Voici le schema électrique de la carte :
          | [ ]A7                   D2[ ] | ILS  
          | [ ]5V                  GND[ ] |     
          | [ ]RST                 RST[ ] |   
-         | [ ]GND                  TX[ ] |   
-         | [ ]Vin                  RX[ ] |   
+         | [ ]GND                 RX1[ ] |   
+         | [ ]Vin                 TX1[ ] |   
          |                               |
          |                               |
          | NANO EVERY                    |
