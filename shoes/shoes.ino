@@ -73,6 +73,7 @@ int  ready_rf=0;
 int  ready_rb=0;
 int  ready_lf=0;
 int  ready_lb=0;
+int test = 0;
 
 void setup() {
   pixels.begin();
@@ -82,6 +83,7 @@ void setup() {
   pixels.show();
   pinMode(ILS_PIN, INPUT);
   Serial.begin(115200);
+  Serial1.begin(115200);
   Wire.begin();
   mpu6050.begin();
   mpu6050.calcGyroOffsets(true);
@@ -126,45 +128,58 @@ void loop() {
   if(force_rf+force_rb+force_lf+force_lb>40){
     pixels.setPixelColor(10*(force_rf+force_rb)/(force_rf+force_rb+force_lf+force_lb), pixels.Color(0, 0, 150));
   }
-  pixels.show();
   
-  if(Serial.available()>0){
-    char c = (char)Serial.read();
+  
+  if(Serial1.available()>0){
+    char c = (char)Serial1.read();
     //Serial.println(c);
+    if(c=='B'){
+      if(test == 0){
+        test = 1;
+      }else{
+        test = 0;
+      }
+    }
     if(c=='A'){
       // envoyer le json
-      Serial.print("{\"RF\":{\"F\":");
-      Serial.print(force_rf);
-      Serial.print(",\"S\":");
-      Serial.print(ready_rf);
-      Serial.print("},\"RB\":{\"F\":");
-      Serial.print(force_rb);
-      Serial.print(",\"S\":");
-      Serial.print(ready_rb);
-      Serial.print("},\"LF\":{\"F\":");
-      Serial.print(force_lf);
-      Serial.print(",\"S\":");
-      Serial.print(ready_lf);
-      Serial.print("},\"LB\":{\"F\":");
-      Serial.print(force_lb);
-      Serial.print(",\"S\":");
-      Serial.print(ready_lb);
-      Serial.print("},\"GYR\":{\"X\":");
-      Serial.print(mpu6050.getGyroX());
-      Serial.print(",\"Y\":");
-      Serial.print(mpu6050.getGyroY());
-      Serial.print(",\"Z\":");
-      Serial.print(mpu6050.getGyroZ());
-      Serial.print("},\"ANG\":{\"X\":");
-      Serial.print(mpu6050.getAngleX());
-      Serial.print(",\"Y\":");
-      Serial.print(mpu6050.getAngleY());
-      Serial.print(",\"Z\":");
-      Serial.print(mpu6050.getAngleZ());
-      Serial.print("},\"ILS\":{\"S\":");
-      Serial.print(!digitalRead(ILS_PIN));
-      Serial.print("}}\n");
+      Serial1.print("{\"RF\":{\"F\":");
+      Serial1.print(force_rf);
+      Serial1.print(",\"S\":");
+      Serial1.print(ready_rf);
+      Serial1.print("},\"RB\":{\"F\":");
+      Serial1.print(force_rb);
+      Serial1.print(",\"S\":");
+      Serial1.print(ready_rb);
+      Serial1.print("},\"LF\":{\"F\":");
+      Serial1.print(force_lf);
+      Serial1.print(",\"S\":");
+      Serial1.print(ready_lf);
+      Serial1.print("},\"LB\":{\"F\":");
+      Serial1.print(force_lb);
+      Serial1.print(",\"S\":");
+      Serial1.print(ready_lb);
+      Serial1.print("},\"GYR\":{\"X\":");
+      Serial1.print(mpu6050.getGyroX());
+      Serial1.print(",\"Y\":");
+      Serial1.print(mpu6050.getGyroY());
+      Serial1.print(",\"Z\":");
+      Serial1.print(mpu6050.getGyroZ());
+      Serial1.print("},\"ANG\":{\"X\":");
+      Serial1.print(mpu6050.getAngleX());
+      Serial1.print(",\"Y\":");
+      Serial1.print(mpu6050.getAngleY());
+      Serial1.print(",\"Z\":");
+      Serial1.print(mpu6050.getAngleZ());
+      Serial1.print("},\"ILS\":{\"S\":");
+      Serial1.print(!digitalRead(ILS_PIN));
+      Serial1.print("}}\n");
     }
   }
+  if(test == 0){
+    pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+  }else{
+    pixels.setPixelColor(0, pixels.Color(150, 0, 0));
+  }
+  pixels.show();
   delay(10);
 }
