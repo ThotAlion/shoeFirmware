@@ -1,6 +1,6 @@
 #include "HX711.h"
-#include <MPU6050_tockn.h>
-#include <Wire.h>
+#include "Wire.h"
+#include <MPU6050_light.h>
 #include <Adafruit_NeoPixel.h>
 #define NUM_LEDS 11
 #define NEOPIXEL_PIN 5
@@ -60,8 +60,9 @@ HX711 foot_lf;
 HX711 foot_lb;
 
 // declaration du MPU
-MPU6050 mpu6050(Wire);
+MPU6050 mpu(Wire);
 
+//neopixel
 Adafruit_NeoPixel pixels(NUM_LEDS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 // declaration des variables
@@ -86,13 +87,15 @@ void setup() {
   pinMode(ILS_PIN, INPUT);
   Serial.begin(115200);
   Serial1.begin(115200);
+  Serial.println("Init.");
   Wire.begin();
-  Serial.println("A");
-  mpu6050.begin();
+  mpu.begin();
+  Serial.println("Start calibration.");
   pixels.setPixelColor(5, pixels.Color(255, 0, 0));
   pixels.show();
-  mpu6050.calcGyroOffsets(true);
-  Serial.println("C");
+  delay(1000);
+  mpu.calcGyroOffsets();
+  Serial.println("Done !");
   pixels.setPixelColor(5, pixels.Color(0, 0, 255));
   pixels.show();
   foot_rf.begin(FOOT_RF_DOUT_PIN, FOOT_RF_SCK_PIN);
@@ -104,8 +107,8 @@ void setup() {
 }
 
 void loop() {
+  mpu.update();
   // lecture des capteurs
-  mpu6050.update();
   if (foot_rf.is_ready()){
     force_rf = -(foot_rf.read()-89287)/1000;
     ready_rf = 1;
@@ -163,18 +166,12 @@ void loop() {
       Serial.print(force_lb);
       Serial.print(",\"S\":");
       Serial.print(ready_lb);
-      Serial.print("},\"GYR\":{\"X\":");
-      Serial.print(mpu6050.getGyroX());
-      Serial.print(",\"Y\":");
-      Serial.print(mpu6050.getGyroY());
-      Serial.print(",\"Z\":");
-      Serial.print(mpu6050.getGyroZ());
       Serial.print("},\"ANG\":{\"X\":");
-      Serial.print(mpu6050.getAngleX());
+      Serial.print(mpu.getAngleX());
       Serial.print(",\"Y\":");
-      Serial.print(mpu6050.getAngleY());
+      Serial.print(mpu.getAngleY());
       Serial.print(",\"Z\":");
-      Serial.print(mpu6050.getAngleZ());
+      Serial.print(mpu.getAngleZ());
       Serial.print("},\"ILS\":{\"S\":");
       Serial.print(!digitalRead(ILS_PIN));
       Serial.print("}}\n");
@@ -201,18 +198,12 @@ void loop() {
       Serial1.print(force_lb);
       Serial1.print(",\"S\":");
       Serial1.print(ready_lb);
-      Serial1.print("},\"GYR\":{\"X\":");
-      Serial1.print(mpu6050.getGyroX());
-      Serial1.print(",\"Y\":");
-      Serial1.print(mpu6050.getGyroY());
-      Serial1.print(",\"Z\":");
-      Serial1.print(mpu6050.getGyroZ());
       Serial1.print("},\"ANG\":{\"X\":");
-      Serial1.print(mpu6050.getAngleX());
+      Serial1.print(mpu.getAngleX());
       Serial1.print(",\"Y\":");
-      Serial1.print(mpu6050.getAngleY());
+      Serial1.print(mpu.getAngleY());
       Serial1.print(",\"Z\":");
-      Serial1.print(mpu6050.getAngleZ());
+      Serial1.print(mpu.getAngleZ());
       Serial1.print("},\"ILS\":{\"S\":");
       Serial1.print(!digitalRead(ILS_PIN));
       Serial1.print("}}\n");
