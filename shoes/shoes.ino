@@ -53,6 +53,15 @@ const int FOOT_LB_SCK_PIN = 6;
 //Bouton ILS pour démarrage
 const int ILS_PIN = 2;
 
+//Temps d'echantillonnage (ms)
+const int dt = 20;
+
+//offset des capteurs de pression
+const long force_rf_offset = 89287;
+const long force_rb_offset = 41736;
+const long force_lf_offset = 124089;
+const long force_lb_offset = 17528;
+
 // declaration des capteurs de force
 HX711 foot_rf;
 HX711 foot_rb;
@@ -110,25 +119,25 @@ void loop() {
   mpu.update();
   // lecture des capteurs
   if (foot_rf.is_ready()){
-    force_rf = -(foot_rf.read()-89287)/1000;
+    force_rf = -(foot_rf.read()-force_rf_offset)/1000;
     ready_rf = 1;
   }else{
     ready_rf = 0;
   }
   if (foot_rb.is_ready()){
-    force_rb = -(foot_rb.read()+41736)/1000;
+    force_rb = -(foot_rb.read()+force_rb_offset)/1000;
     ready_rb = 1;
   }else{
     ready_rb = 0;
   }
   if (foot_lf.is_ready()){
-    force_lf = -(foot_lf.read()-124089)/1000;
+    force_lf = -(foot_lf.read()-force_lf_offset)/1000;
     ready_lf = 1;
   }else{
     ready_lf = 0;
   }
   if (foot_lb.is_ready()){
-    force_lb = -(foot_lb.read()-17528)/1000;
+    force_lb = -(foot_lb.read()-force_lb_offset)/1000;
     ready_lb = 1;
   }else{
     ready_lb = 0;
@@ -213,5 +222,5 @@ void loop() {
     pixels.setPixelColor(0, pixels.Color(150, 0, 0));
   }
   pixels.show();
-  delay(10);
+  delay(dt);
 }
