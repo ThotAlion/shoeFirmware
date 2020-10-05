@@ -2,13 +2,12 @@
 #include <Adafruit_NeoPixel.h>
 #define NUM_LEDS 11
 #define NEOPIXEL_PIN 5
-#include "I2Cdev.h"
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BNO055.h>
+#include <utility/imumaths.h>
 
-#include "MPU6050_6Axis_MotionApps20.h"
-#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-    #include "Wire.h"
-#endif
-MPU6050 mpu;
+
 /*
 Description :
 Ce firmware a pour rôle de récuperer les valeurs de l'ensemble des capteurs sur demande
@@ -25,10 +24,10 @@ Voici le schema électrique de la carte :
   RB_SCK | [ ]A1/D15  /  A  \      D8[ ] | LF_SCK
  RF_DOUT | [ ]A2/D16  \  N  /      D7[ ] | LB_DOUT
   RF_SCK | [ ]A3/D17   \_0_/       D6[ ]~| LB_SCK
-     MPU | [ ]A4/D18/SDA           D5[ ]~| NEOPIXEL
-     MPU | [ ]A5/D19/SCL           D4[ ] |   
+     BNO | [ ]A4/D18/SDA           D5[ ]~| NEOPIXEL
+     BNO | [ ]A5/D19/SCL           D4[ ] |   
          | [ ]A6                   D3[ ]~|   
-         | [ ]A7                   D2[ ] | MPU interrupt
+         | [ ]A7                   D2[ ] |  interrupt
          | [ ]5V                  GND[ ] |     
          | [ ]RST                 RST[ ] |   
          | [ ]GND                 RX1[ ] |   
@@ -60,25 +59,11 @@ const int FOOT_LB_SCK_PIN = 6;
 #define LED_PIN 13 // (Arduino is 13, Teensy is 11, Teensy++ is 6)
 bool blinkState = false;
 
-// MPU control/status vars
-bool dmpReady = false;  // set true if DMP init was successful
-uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
-uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
-uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
-uint16_t fifoCount;     // count of all bytes currently in FIFO
-uint8_t fifoBuffer[64]; // FIFO storage buffer
-
-// orientation/motion vars
-Quaternion q;           // [w, x, y, z]         quaternion container
-VectorInt16 aa;         // [x, y, z]            accel sensor measurements
-VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
-VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measurements
-VectorFloat gravity;    // [x, y, z]            gravity vector
-float euler[3];         // [psi, theta, phi]    Euler angle container
-float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+// BNO055
+Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29);
 
 //Temps d'echantillonnage (ms)
-const int dt = 20;
+const int dt = 10;
 
 //offset des capteurs de pression
 const long force_rf_offset = 89287;
@@ -107,11 +92,6 @@ int  ready_lb=0;
 int test = 0;
 char c,c0;
 
-volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin has gone high
-void dmpDataReady() {
-    mpuInterrupt = true;
-}
-
 void setup() {
   pixels.begin();
   pixels.clear();
@@ -131,71 +111,24 @@ void setup() {
   
   pixels.setPixelColor(2, pixels.Color(255, 255, 255));
   pixels.show();
-  
-  #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-      Wire.begin();
-      Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
-  #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-      Fastwire::setup(400, true);
-  #endif
-  
+  /* Initialise the sensor */
+  if(!bno.begin())
+  {
+    /* There was a problem detecting the BNO055 ... check your connections */
+    Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+    while(1);
+  }
+  delay(1000);
+  bno.setExtCrystalUse(true);
   pixels.setPixelColor(3, pixels.Color(255, 255, 255));
   pixels.show();
-  
-  mpu.initialize();
-  pinMode(INTERRUPT_PIN, INPUT);
   
   pixels.setPixelColor(4, pixels.Color(255, 255, 255));
   pixels.show();
   
-  Serial.println(F("Testing device connections..."));
-  Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
-  
   pixels.setPixelColor(5, pixels.Color(255, 255, 255));
   pixels.show();
 
-  Serial.println(F("Initializing DMP..."));
-  devStatus = mpu.dmpInitialize();
-  // supply your own gyro offsets here, scaled for min sensitivity
-  mpu.setXGyroOffset(220);
-  mpu.setYGyroOffset(76);
-  mpu.setZGyroOffset(-85);
-  mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
-
-  // make sure it worked (returns 0 if so)
-  if (devStatus == 0) {
-      // Calibration Time: generate offsets and calibrate our MPU6050
-      mpu.CalibrateAccel(6);
-      mpu.CalibrateGyro(6);
-      mpu.PrintActiveOffsets();
-      // turn on the DMP, now that it's ready
-      Serial.println(F("Enabling DMP..."));
-      mpu.setDMPEnabled(true);
-
-      // enable Arduino interrupt detection
-      Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-      Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
-      Serial.println(F(")..."));
-      attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
-      mpuIntStatus = mpu.getIntStatus();
-
-      // set our DMP Ready flag so the main loop() function knows it's okay to use it
-      Serial.println(F("DMP ready! Waiting for first interrupt..."));
-      dmpReady = true;
-
-      // get expected DMP packet size for later comparison
-      packetSize = mpu.dmpGetFIFOPacketSize();
-  } else {
-      // ERROR!
-      // 1 = initial memory load failed
-      // 2 = DMP configuration updates failed
-      // (if it's going to break, usually the code will be 1)
-      Serial.print(F("DMP Initialization failed (code "));
-      Serial.print(devStatus);
-      Serial.println(F(")"));
-  }
-  
-  Serial.println("Done !");
   pixels.setPixelColor(5, pixels.Color(0, 0, 255));
   pixels.show();
   
@@ -208,57 +141,10 @@ void setup() {
 }
 
 void loop() {
-  //lecture du DMP
-  // if programming failed, don't try to do anything
-  if (dmpReady) {
-    // wait for MPU interrupt or extra packet(s) available
-    while (!mpuInterrupt && fifoCount < packetSize) {
-      if (mpuInterrupt && fifoCount < packetSize) {
-        // try to get out of the infinite loop 
-        fifoCount = mpu.getFIFOCount();
-      }  
-    }
-
-    // reset interrupt flag and get INT_STATUS byte
-    mpuInterrupt = false;
-    mpuIntStatus = mpu.getIntStatus();
-
-    // get current FIFO count
-    fifoCount = mpu.getFIFOCount();
-    if(fifoCount < packetSize){
-    }
-    // check for overflow (this should never happen unless our code is too inefficient)
-    else if ((mpuIntStatus & (0x01 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT)) || fifoCount >= 1024) {
-      // reset so we can continue cleanly
-      mpu.resetFIFO();
-      //  fifoCount = mpu.getFIFOCount();  // will be zero after reset no need to ask
-      Serial.println(F("FIFO overflow!"));
-      // otherwise, check for DMP data ready interrupt (this should happen frequently)
-    } else if (mpuIntStatus & (0x01 << MPU6050_INTERRUPT_DMP_INT_BIT)) {
-      // read a packet from FIFO
-      while(fifoCount >= packetSize){ // Lets catch up to NOW, someone is using the dreaded delay()!
-        mpu.getFIFOBytes(fifoBuffer, packetSize);
-        // track FIFO count here in case there is > 1 packet available
-        // (this lets us immediately read more without waiting for an interrupt)
-        fifoCount -= packetSize;
-      }
-      // display Euler angles in degrees
-      mpu.dmpGetQuaternion(&q, fifoBuffer);
-      mpu.dmpGetGravity(&gravity, &q);
-      mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-//      Serial.print("ypr\t");
-//      Serial.print(ypr[0] * 180/M_PI);
-//      Serial.print("\t");
-//      Serial.print(ypr[1] * 180/M_PI);
-//      Serial.print("\t");
-//      Serial.println(ypr[2] * 180/M_PI);
-      // blink LED to indicate activity
-      blinkState = !blinkState;
-      digitalWrite(LED_PIN, blinkState);
-    }
-  }
-
-  
+  // lecture du BNO
+  sensors_event_t orientationData,angVelocityData;
+  bno.getEvent(&orientationData, Adafruit_BNO055::VECTOR_EULER);
+  bno.getEvent(&angVelocityData, Adafruit_BNO055::VECTOR_GYROSCOPE);
   // lecture des capteurs
   if (foot_rf.is_ready()){
     force_rf = -(foot_rf.read()-force_rf_offset)/1000;
@@ -318,13 +204,23 @@ void loop() {
       Serial.print(",\"S\":");
       Serial.print(ready_lb);
       Serial.print("},\"ANG\":{\"X\":");
-      Serial.print(ypr[2] * 180/M_PI);
+      float a= (float)orientationData.orientation.z;
+      if(a>0){
+        Serial.print(180-a);
+      }else{
+        Serial.print(-a-180);
+      }
+      
       Serial.print(",\"Y\":");
-      Serial.print(ypr[1] * 180/M_PI);
+      Serial.print((float)orientationData.orientation.y);
       Serial.print(",\"Z\":");
-      Serial.print(ypr[0] * 180/M_PI);
-//      Serial.print("},\"ILS\":{\"S\":");
-//      Serial.print(!digitalRead(ILS_PIN));
+      Serial.print((float)orientationData.orientation.x);
+      Serial.print("},\"GYR\":{\"X\":");
+      Serial.print((float)angVelocityData.gyro.x);
+      Serial.print(",\"Y\":");
+      Serial.print((float)angVelocityData.gyro.y);
+      Serial.print(",\"Z\":");
+      Serial.print((float)angVelocityData.gyro.z);
       Serial.print("}}\n");
     }
   }
@@ -350,13 +246,17 @@ void loop() {
       Serial1.print(",\"S\":");
       Serial1.print(ready_lb);
       Serial1.print("},\"ANG\":{\"X\":");
-      Serial1.print(ypr[2] * 180/M_PI);
+      Serial1.print((float)orientationData.orientation.x);
       Serial1.print(",\"Y\":");
-      Serial1.print(ypr[1] * 180/M_PI);
+      Serial1.print((float)orientationData.orientation.y);
       Serial1.print(",\"Z\":");
-      Serial1.print(ypr[0] * 180/M_PI);
-//      Serial1.print("},\"ILS\":{\"S\":");
-//      Serial1.print(!digitalRead(ILS_PIN));
+      Serial1.print((float)orientationData.orientation.z);
+      Serial1.print("},\"GYR\":{\"X\":");
+      Serial1.print((float)angVelocityData.gyro.x);
+      Serial1.print(",\"Y\":");
+      Serial1.print((float)angVelocityData.gyro.y);
+      Serial1.print(",\"Z\":");
+      Serial1.print((float)angVelocityData.gyro.z);
       Serial1.print("}}\n");
     }
   }
