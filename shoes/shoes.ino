@@ -246,11 +246,17 @@ void loop() {
       Serial1.print(",\"S\":");
       Serial1.print(ready_lb);
       Serial1.print("},\"ANG\":{\"X\":");
-      Serial1.print((float)orientationData.orientation.x);
+      float a= (float)orientationData.orientation.z;
+      if(a>0){
+        Serial1.print(180-a);
+      }else{
+        Serial1.print(-a-180);
+      }
+      
       Serial1.print(",\"Y\":");
       Serial1.print((float)orientationData.orientation.y);
       Serial1.print(",\"Z\":");
-      Serial1.print((float)orientationData.orientation.z);
+      Serial1.print((float)orientationData.orientation.x);
       Serial1.print("},\"GYR\":{\"X\":");
       Serial1.print((float)angVelocityData.gyro.x);
       Serial1.print(",\"Y\":");
