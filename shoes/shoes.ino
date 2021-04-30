@@ -60,7 +60,8 @@ const int FOOT_LB_SCK_PIN = 6;
 bool blinkState = false;
 
 // BNO055
-Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x29);
+Adafruit_BNO055 bnoR = Adafruit_BNO055(55, 0x29);
+Adafruit_BNO055 bnoL = Adafruit_BNO055(56, 0x28);
 
 //Temps d'echantillonnage (ms)
 const int dt = 10;
@@ -108,18 +109,25 @@ void setup() {
   
   Serial.begin(115200);
   Serial1.begin(115200);
-  
+
   pixels.setPixelColor(2, pixels.Color(255, 255, 255));
   pixels.show();
   /* Initialise the sensor */
-  if(!bno.begin())
+  if(!bnoR.begin())
   {
     /* There was a problem detecting the BNO055 ... check your connections */
-    Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+    Serial.println("Ooops, no BNO055 right detected ... Check your wiring or I2C ADDR!");
+    while(1);
+  }
+  if(!bnoL.begin())
+  {
+    /* There was a problem detecting the BNO055 ... check your connections */
+    Serial.println("Ooops, no BNO055 left detected ... Check your wiring or I2C ADDR!");
     while(1);
   }
   delay(1000);
-  bno.setExtCrystalUse(true);
+  bnoR.setExtCrystalUse(true);
+  bnoL.setExtCrystalUse(true);
   pixels.setPixelColor(3, pixels.Color(255, 255, 255));
   pixels.show();
   
@@ -142,9 +150,12 @@ void setup() {
 
 void loop() {
   // lecture du BNO
-  sensors_event_t orientationData,angVelocityData;
-  bno.getEvent(&orientationData, Adafruit_BNO055::VECTOR_EULER);
-  bno.getEvent(&angVelocityData, Adafruit_BNO055::VECTOR_GYROSCOPE);
+  sensors_event_t orientationDataR,angVelocityDataR;
+  bnoR.getEvent(&orientationDataR, Adafruit_BNO055::VECTOR_EULER);
+  bnoR.getEvent(&angVelocityDataR, Adafruit_BNO055::VECTOR_GYROSCOPE);
+  sensors_event_t orientationDataL,angVelocityDataL;
+  bnoL.getEvent(&orientationDataL, Adafruit_BNO055::VECTOR_EULER);
+  bnoL.getEvent(&angVelocityDataL, Adafruit_BNO055::VECTOR_GYROSCOPE);
   // lecture des capteurs
   if (foot_rf.is_ready()){
     force_rf = -(foot_rf.read()-force_rf_offset)/1000;
@@ -203,24 +214,30 @@ void loop() {
       Serial.print(force_lb);
       Serial.print(",\"S\":");
       Serial.print(ready_lb);
-      Serial.print("},\"ANG\":{\"X\":");
-      float a= (float)orientationData.orientation.z;
-      if(a>0){
-        Serial.print(180-a);
-      }else{
-        Serial.print(-a-180);
-      }
-      
+      Serial.print("},\"ANGR\":{\"X\":");
+      Serial.print((float)orientationDataR.orientation.z);
       Serial.print(",\"Y\":");
-      Serial.print((float)orientationData.orientation.y);
+      Serial.print((float)orientationDataR.orientation.y);
       Serial.print(",\"Z\":");
-      Serial.print((float)orientationData.orientation.x);
-      Serial.print("},\"GYR\":{\"X\":");
-      Serial.print((float)angVelocityData.gyro.x);
+      Serial.print((float)orientationDataR.orientation.x);
+      Serial.print("},\"GYRR\":{\"X\":");
+      Serial.print((float)angVelocityDataR.gyro.x);
       Serial.print(",\"Y\":");
-      Serial.print((float)angVelocityData.gyro.y);
+      Serial.print((float)angVelocityDataR.gyro.y);
       Serial.print(",\"Z\":");
-      Serial.print((float)angVelocityData.gyro.z);
+      Serial.print((float)angVelocityDataR.gyro.z);
+      Serial.print("},\"ANGL\":{\"X\":");
+      Serial.print((float)orientationDataL.orientation.z);
+      Serial.print(",\"Y\":");
+      Serial.print((float)orientationDataL.orientation.y);
+      Serial.print(",\"Z\":");
+      Serial.print((float)orientationDataL.orientation.x);
+      Serial.print("},\"GYRL\":{\"X\":");
+      Serial.print((float)angVelocityDataL.gyro.x);
+      Serial.print(",\"Y\":");
+      Serial.print((float)angVelocityDataL.gyro.y);
+      Serial.print(",\"Z\":");
+      Serial.print((float)angVelocityDataL.gyro.z);
       Serial.print("}}\n");
     }
   }
@@ -245,24 +262,30 @@ void loop() {
       Serial1.print(force_lb);
       Serial1.print(",\"S\":");
       Serial1.print(ready_lb);
-      Serial1.print("},\"ANG\":{\"X\":");
-      float a= (float)orientationData.orientation.z;
-      if(a>0){
-        Serial1.print(180-a);
-      }else{
-        Serial1.print(-a-180);
-      }
-      
+      Serial1.print("},\"ANGR\":{\"X\":");
+      Serial1.print((float)orientationDataR.orientation.z);
       Serial1.print(",\"Y\":");
-      Serial1.print((float)orientationData.orientation.y);
+      Serial1.print((float)orientationDataR.orientation.y);
       Serial1.print(",\"Z\":");
-      Serial1.print((float)orientationData.orientation.x);
-      Serial1.print("},\"GYR\":{\"X\":");
-      Serial1.print((float)angVelocityData.gyro.x);
+      Serial1.print((float)orientationDataR.orientation.x);
+      Serial1.print("},\"GYRR\":{\"X\":");
+      Serial1.print((float)angVelocityDataR.gyro.x);
       Serial1.print(",\"Y\":");
-      Serial1.print((float)angVelocityData.gyro.y);
+      Serial1.print((float)angVelocityDataR.gyro.y);
       Serial1.print(",\"Z\":");
-      Serial1.print((float)angVelocityData.gyro.z);
+      Serial1.print((float)angVelocityDataR.gyro.z);
+      Serial1.print("},\"ANGL\":{\"X\":");
+      Serial1.print((float)orientationDataL.orientation.z);
+      Serial1.print(",\"Y\":");
+      Serial1.print((float)orientationDataL.orientation.y);
+      Serial1.print(",\"Z\":");
+      Serial1.print((float)orientationDataL.orientation.x);
+      Serial1.print("},\"GYRL\":{\"X\":");
+      Serial1.print((float)angVelocityDataL.gyro.x);
+      Serial1.print(",\"Y\":");
+      Serial1.print((float)angVelocityDataL.gyro.y);
+      Serial1.print(",\"Z\":");
+      Serial1.print((float)angVelocityDataL.gyro.z);
       Serial1.print("}}\n");
     }
   }
